@@ -8,18 +8,13 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
-	"github.com/justinian/gokasa"
 )
 
-type Powerstrip struct {
-	Hostname string `toml:"hostname"`
-}
-
 type Config struct {
-	Interval   string     `toml:"interval"`
-	Powerstrip Powerstrip `toml:"power_strip"`
-	Sensors    []*Sensor  `toml:"sensors"`
+	Sensors []*SensorInfo `toml:"sensors"`
+	Devices []*DeviceInfo `toml:"devices"`
 
+	Interval       string `toml:"interval"`
 	MetricsAddress string `toml:"metrics_address"`
 }
 
@@ -43,20 +38,23 @@ func run(configPath string) error {
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, os.Interrupt)
 
-	strip, err := gokasa.NewPowerStrip(config.Powerstrip.Hostname)
+	registry, err := NewRegistry(&config)
 	if err != nil {
-		return fmt.Errorf("Error connecting to power strip: %v", err)
+		return fmt.Errorf("Failed to initialize devices: %v", err)
 	}
 
 	for _, s := range config.Sensors {
-		if s.PlugIndex < 0 || s.PlugIndex >= len(strip.Plugs) {
-			return fmt.Errorf("Device %s has invalid plug index %d. (Max %d)",
-				s.Name, s.PlugIndex, len(strip.Plugs)-1)
+		err = registry.InitSensor(s)
+		if err != nil {
+			return fmt.Errorf("Sensor %s failed device binding: %v", s.Name, err)
 		}
-		s.plug = strip.Plugs[s.PlugIndex]
 
-		log.Printf("Sensor %s configured. Range: %g - %g.", s.Name,
-			s.Target-s.Range, s.Target+s.Range)
+		if s.device == nil {
+			log.Printf("Sensor %s configured, logging only.", s.Name)
+		} else {
+			log.Printf("Sensor %s configured. Range: %g - %g.", s.Name,
+				s.Target-s.Range, s.Target+s.Range)
+		}
 	}
 
 	log.Printf("Penny running, updating every %v", interval)

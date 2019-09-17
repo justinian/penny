@@ -1,7 +1,9 @@
 interval = "5s"
 
-[power_strip]
-hostname = "kasa"
+[[devices]]
+name = "plug"
+kind = "kasa"
+connection = "kasa"
 
 [[sensors]]
 name = "ground-warm"
@@ -9,7 +11,8 @@ kind = "w1-therm"
 read_from = "/tmp/w1-therm-warm"
 target = 26.7
 range = 1.25
-plug_idx = 0
+device = "plug"
+subdevice = "0"
 
 [[sensors]]
 name = "ground-cool"
@@ -17,4 +20,5 @@ kind = "w1-therm"
 read_from = "/tmp/w1-therm-cool"
 target = 25.2
 range = 1.25
-plug_idx = 1
+device = "plug"
+subdevice = "1"

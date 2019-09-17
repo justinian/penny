@@ -26,21 +26,18 @@ func init() {
 	prometheus.MustRegister(metricValue)
 }
 
-type PowerToggler interface {
-	IsOn() bool
-	On() error
-	Off() error
-}
+type SensorInfo struct {
+	Name string `toml:"name"`
+	Kind string `toml:"kind"`
 
-type Sensor struct {
-	Name      string  `toml:"name"`
-	Target    float64 `toml:"target"`
-	Range     float64 `toml:"range"`
-	PlugIndex int     `toml:"plug"`
-	Kind      string  `toml:"kind"`
-	ReadFrom  string  `toml:"read_from"`
+	ReadFrom string  `toml:"read_from"`
+	Target   float64 `toml:"target"`
+	Range    float64 `toml:"range"`
 
-	plug PowerToggler
+	Device    string `toml:"device"`
+	Subdevice string `toml:"subdevice"`
+
+	device PowerToggler
 }
 
 type valueReader func(filename string) (float64, error)
@@ -49,7 +46,7 @@ var kinds = map[string]valueReader{
 	"w1-therm": readW1Therm,
 }
 
-func (s *Sensor) Read() (float64, error) {
+func (s *SensorInfo) Read() (float64, error) {
 	reader, ok := kinds[s.Kind]
 	if !ok {
 		return 0, fmt.Errorf("Unknown sensor kind: %s", s.Kind)
@@ -58,7 +55,7 @@ func (s *Sensor) Read() (float64, error) {
 	return reader(s.ReadFrom)
 }
 
-func (s *Sensor) Update() error {
+func (s *SensorInfo) Update() error {
 	val, err := s.Read()
 	if err != nil {
 		return err
@@ -66,12 +63,14 @@ func (s *Sensor) Update() error {
 
 	metricValue.WithLabelValues(s.Name).Set(val)
 
-	if !s.plug.IsOn() && val < (s.Target-s.Range) {
-		log.Printf("%s read %g - turning on.", s.Name, val)
-		return s.plug.On()
-	} else if s.plug.IsOn() && val > (s.Target+s.Range) {
-		log.Printf("%s read %g - turning off.", s.Name, val)
-		return s.plug.Off()
+	if s.device != nil {
+		if !s.device.IsOn() && val < (s.Target-s.Range) {
+			log.Printf("%s read %g - turning on.", s.Name, val)
+			return s.device.On()
+		} else if s.device.IsOn() && val > (s.Target+s.Range) {
+			log.Printf("%s read %g - turning off.", s.Name, val)
+			return s.device.Off()
+		}
 	}
 
 	return nil
